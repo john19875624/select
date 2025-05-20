@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         ネクストレベル自動設定スクリプト
+// @name         ネクストレベル自動設定スクリプト v1.1
 // @namespace    https://www.e-nextlevel.jp/
-// @version      1.0
-// @description  軽作業・催事・スキマバイト選択 + 東京都のみにチェックを制御
+// @version      1.1
+// @description  軽作業・催事・スキマバイト + 東京都 + エントリー可否の強制設定と変更ログ出力機能付きスクリプト
 // @author       You
 // @match        https://www.e-nextlevel.jp/work/search*
 // @grant        none
@@ -11,64 +11,80 @@
 (function () {
   'use strict';
 
-  // 職種チェックボックスの対象ラベル
   const TARGET_JOB_LABELS = ['軽作業', '催事・イベント・展示会'];
-
-  // 勤務形態ラジオボタンの対象ラベル
   const TARGET_RADIO_LABEL = 'スキマバイト';
-
-  // 都道府県で残すもの（東京都）
   const PREF_TARGET = '東京都';
 
+  function logChange(label, oldValue, newValue) {
+    if (oldValue !== newValue) {
+      console.log(`[変更検知] ${label}: ${oldValue} → ${newValue}`);
+    }
+  }
+
   function forceSelectOptions() {
-    // 1. 職種チェックボックス選択
+    // 職種チェック
     const jobLabels = document.querySelectorAll('label.sideModalForm__checkbox');
     jobLabels.forEach((label) => {
       const text = label.querySelector('span.sideModalForm__checkboxText')?.textContent.trim();
       const checkbox = label.querySelector('input[type="checkbox"]');
       if (!checkbox) return;
 
-      if (TARGET_JOB_LABELS.includes(text)) {
-        if (!checkbox.checked) {
-          checkbox.checked = true;
-          checkbox.dispatchEvent(new Event('change', { bubbles: true }));
-        }
+      const shouldCheck = TARGET_JOB_LABELS.includes(text);
+      if (shouldCheck && !checkbox.checked) {
+        logChange(`職種: ${text}`, '未選択', '選択');
+        checkbox.checked = true;
+        checkbox.dispatchEvent(new Event('change', { bubbles: true }));
       }
     });
 
-    // 2. スキマバイトラジオボタン選択
+    // 勤務形態（ラジオボタン）
     const radioLabels = document.querySelectorAll('label.sideModalForm__radio');
     radioLabels.forEach((label) => {
       const text = label.querySelector('span.sideModalForm__radioText')?.textContent.trim();
       const radio = label.querySelector('input[type="radio"]');
-      if (text === TARGET_RADIO_LABEL && radio && !radio.checked) {
+      if (!radio) return;
+
+      if (text === TARGET_RADIO_LABEL && !radio.checked) {
+        logChange(`勤務形態: ${text}`, '未選択', '選択');
         radio.checked = true;
         radio.dispatchEvent(new Event('change', { bubbles: true }));
       }
     });
 
-    // 3. 都道府県を「東京都」のみにする
-    const prefLabels = document.querySelectorAll('label.sideModalForm__checkbox');
-    prefLabels.forEach((label) => {
+    // 都道府県
+    jobLabels.forEach((label) => {
       const text = label.querySelector('span.sideModalForm__checkboxText')?.textContent.trim();
       const checkbox = label.querySelector('input[type="checkbox"]');
       if (!checkbox) return;
 
       if (text === PREF_TARGET) {
         if (!checkbox.checked) {
+          logChange(`都道府県: ${text}`, '未選択', '選択');
           checkbox.checked = true;
           checkbox.dispatchEvent(new Event('change', { bubbles: true }));
         }
       } else {
         if (checkbox.checked) {
+          logChange(`都道府県: ${text}`, '選択', '未選択');
           checkbox.checked = false;
           checkbox.dispatchEvent(new Event('change', { bubbles: true }));
         }
       }
     });
+
+    // エントリー可否ボタン
+    const entryBtn = document.querySelector('#narrowingDown');
+    if (entryBtn) {
+      const currentText = entryBtn.textContent.trim();
+      const isChecked = entryBtn.classList.contains('is_checked');
+      if (currentText !== 'エントリー可' || !isChecked) {
+        logChange('エントリー可否ボタン', currentText + (isChecked ? ' (✓)' : ' (✗)'), 'エントリー可 (✓)');
+        entryBtn.textContent = 'エントリー可';
+        entryBtn.classList.add('is_checked');
+      }
+    }
   }
 
-  // 一括設定ボタンを画面に追加
   function addManualButton() {
     const btn = document.createElement('button');
     btn.innerText = '🔧 一括自動設定';
@@ -85,18 +101,18 @@
 
     btn.addEventListener('click', () => {
       forceSelectOptions();
-      alert('職種・勤務地・スキマバイトを自動設定しました。');
+      alert('自動設定を実行しました（コンソールログも確認してください）。');
     });
 
     document.body.appendChild(btn);
   }
 
-  // DOM読み込みを監視して実行
   function initWhenReady() {
     const observer = new MutationObserver(() => {
       const hasJobs = document.querySelector('label.sideModalForm__checkbox');
       const hasRadios = document.querySelector('label.sideModalForm__radio');
-      if (hasJobs && hasRadios) {
+      const hasEntryBtn = document.querySelector('#narrowingDown');
+      if (hasJobs && hasRadios && hasEntryBtn) {
         forceSelectOptions();
         addManualButton();
         observer.disconnect();
