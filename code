@@ -1,0 +1,110 @@
+// ==UserScript==
+// @name         ネクストレベル自動設定スクリプト
+// @namespace    https://www.e-nextlevel.jp/
+// @version      1.0
+// @description  軽作業・催事・スキマバイト選択 + 東京都のみにチェックを制御
+// @author       You
+// @match        https://www.e-nextlevel.jp/work/search*
+// @grant        none
+// ==/UserScript==
+
+(function () {
+  'use strict';
+
+  // 職種チェックボックスの対象ラベル
+  const TARGET_JOB_LABELS = ['軽作業', '催事・イベント・展示会'];
+
+  // 勤務形態ラジオボタンの対象ラベル
+  const TARGET_RADIO_LABEL = 'スキマバイト';
+
+  // 都道府県で残すもの（東京都）
+  const PREF_TARGET = '東京都';
+
+  function forceSelectOptions() {
+    // 1. 職種チェックボックス選択
+    const jobLabels = document.querySelectorAll('label.sideModalForm__checkbox');
+    jobLabels.forEach((label) => {
+      const text = label.querySelector('span.sideModalForm__checkboxText')?.textContent.trim();
+      const checkbox = label.querySelector('input[type="checkbox"]');
+      if (!checkbox) return;
+
+      if (TARGET_JOB_LABELS.includes(text)) {
+        if (!checkbox.checked) {
+          checkbox.checked = true;
+          checkbox.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+      }
+    });
+
+    // 2. スキマバイトラジオボタン選択
+    const radioLabels = document.querySelectorAll('label.sideModalForm__radio');
+    radioLabels.forEach((label) => {
+      const text = label.querySelector('span.sideModalForm__radioText')?.textContent.trim();
+      const radio = label.querySelector('input[type="radio"]');
+      if (text === TARGET_RADIO_LABEL && radio && !radio.checked) {
+        radio.checked = true;
+        radio.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+    });
+
+    // 3. 都道府県を「東京都」のみにする
+    const prefLabels = document.querySelectorAll('label.sideModalForm__checkbox');
+    prefLabels.forEach((label) => {
+      const text = label.querySelector('span.sideModalForm__checkboxText')?.textContent.trim();
+      const checkbox = label.querySelector('input[type="checkbox"]');
+      if (!checkbox) return;
+
+      if (text === PREF_TARGET) {
+        if (!checkbox.checked) {
+          checkbox.checked = true;
+          checkbox.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+      } else {
+        if (checkbox.checked) {
+          checkbox.checked = false;
+          checkbox.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+      }
+    });
+  }
+
+  // 一括設定ボタンを画面に追加
+  function addManualButton() {
+    const btn = document.createElement('button');
+    btn.innerText = '🔧 一括自動設定';
+    btn.style.position = 'fixed';
+    btn.style.top = '10px';
+    btn.style.right = '10px';
+    btn.style.zIndex = 10000;
+    btn.style.padding = '8px 14px';
+    btn.style.backgroundColor = '#0069d9';
+    btn.style.color = '#fff';
+    btn.style.border = 'none';
+    btn.style.borderRadius = '4px';
+    btn.style.cursor = 'pointer';
+
+    btn.addEventListener('click', () => {
+      forceSelectOptions();
+      alert('職種・勤務地・スキマバイトを自動設定しました。');
+    });
+
+    document.body.appendChild(btn);
+  }
+
+  // DOM読み込みを監視して実行
+  function initWhenReady() {
+    const observer = new MutationObserver(() => {
+      const hasJobs = document.querySelector('label.sideModalForm__checkbox');
+      const hasRadios = document.querySelector('label.sideModalForm__radio');
+      if (hasJobs && hasRadios) {
+        forceSelectOptions();
+        addManualButton();
+        observer.disconnect();
+      }
+    });
+
+    observer.observe(document.body, { childList: true, subtree: true });
+  }
+
+  window.addEventListener('load', initWhenReady);
+})();
